@@ -1,0 +1,721 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>EcoSort — Smart Waste Segregation App</title>
+    <meta name="description" content="EcoSort: IoT-powered waste segregation using Arduino sensors and Bluetooth.">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        eco: { 50: '#f0fdf4', 100: '#dcfce7', 200: '#bbf7d0', 300: '#86efac', 400: '#4ade80', 500: '#22c55e', 600: '#16a34a', 700: '#15803d', 800: '#166534', 900: '#14532d' },
+                    },
+                    fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] },
+                }
+            }
+        }
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap"
+        rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body class="font-sans">
+
+    <!-- ===== BLUETOOTH PERMISSION OVERLAY ===== -->
+    <div id="bt-overlay" class="bt-overlay">
+        <div class="bt-modal">
+            <div class="bt-pulse-ring">
+                <div class="bt-icon-circle">
+                    <i class="fab fa-bluetooth-b text-4xl text-white"></i>
+                </div>
+            </div>
+            <h2 class="text-xl font-extrabold mt-6 text-gray-800">Connect to EcoSort Device</h2>
+            <p class="text-sm text-gray-400 mt-2 text-center leading-relaxed px-4">Allow Bluetooth access to receive
+                real-time waste detection data from the Arduino sensor unit.</p>
+            <button id="bt-connect-btn" class="bt-connect-btn mt-6" onclick="requestBluetooth()">
+                <i class="fab fa-bluetooth-b mr-2"></i> Enable Bluetooth
+            </button>
+            <button class="text-xs text-gray-400 mt-3 hover:text-gray-600 transition" onclick="skipBluetooth()">Skip for
+                now →</button>
+        </div>
+    </div>
+
+    <!-- ===== PHONE FRAME ===== -->
+    <div id="phone" class="phone-frame">
+
+        <!-- ============ HOME SCREEN ============ -->
+        <div id="home" class="screen active">
+            <div class="app-header">
+                <div>
+                    <h1 class="text-xl font-extrabold text-white flex items-center gap-2">♻️ EcoSort</h1>
+                    <p class="text-white/70 text-xs mt-0.5">Let's make the world greener!</p>
+                </div>
+                <div class="flex items-center gap-4">
+                    <div class="relative cursor-pointer" onclick="goTo('notifications')">
+                        <i class="fas fa-bell text-white text-lg"></i>
+                        <span id="notif-badge" class="notif-badge" style="display:none">0</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- BT Status -->
+            <div id="bt-status-bar"
+                class="mx-4 mt-3 px-4 py-2.5 rounded-xl border flex items-center gap-3 transition-all duration-500 bg-gray-50 border-gray-200">
+                <div id="bt-bar-icon"
+                    class="w-8 h-8 rounded-lg bg-gray-400 flex items-center justify-center text-white text-sm transition-all">
+                    <i class="fab fa-bluetooth-b"></i></div>
+                <div class="flex-1">
+                    <p id="bt-bar-title" class="text-xs font-semibold text-gray-500">Arduino Disconnected</p>
+                    <p id="bt-bar-sub" class="text-[10px] text-gray-400">Tap to connect via Bluetooth</p>
+                </div>
+                <span id="bt-bar-status" class="flex items-center gap-1 text-[10px] font-semibold text-gray-400"><span
+                        id="bt-dot" class="w-2 h-2 rounded-full bg-gray-400"></span> Offline</span>
+            </div>
+
+            <!-- Quick Nav -->
+            <div class="grid grid-cols-4 gap-2 mx-4 mt-4">
+                <div class="quick-nav-item" onclick="goTo('scan')">
+                    <div class="w-10 h-10 rounded-xl bg-blue-500 flex items-center justify-center text-white text-sm"><i
+                            class="fas fa-camera"></i></div><span
+                        class="text-[10px] mt-1 text-gray-500 font-medium">Scan</span>
+                </div>
+                <div class="quick-nav-item" onclick="goTo('categories')">
+                    <div class="w-10 h-10 rounded-xl bg-eco-500 flex items-center justify-center text-white text-sm"><i
+                            class="fas fa-recycle"></i></div><span
+                        class="text-[10px] mt-1 text-gray-500 font-medium">Categories</span>
+                </div>
+                <div class="quick-nav-item" onclick="goTo('manage')">
+                    <div class="w-10 h-10 rounded-xl bg-orange-500 flex items-center justify-center text-white text-sm">
+                        <i class="fas fa-leaf"></i></div><span
+                        class="text-[10px] mt-1 text-gray-500 font-medium">Manage</span>
+                </div>
+                <div class="quick-nav-item" onclick="goTo('tips')">
+                    <div
+                        class="w-10 h-10 rounded-xl bg-yellow-400 flex items-center justify-center text-gray-700 text-sm">
+                        <i class="fas fa-lightbulb"></i></div><span
+                        class="text-[10px] mt-1 text-gray-500 font-medium">Tips</span>
+                </div>
+            </div>
+
+            <!-- Menu Buttons -->
+            <div class="px-4 mt-4 space-y-2.5 pb-4 overflow-y-auto flex-1">
+                <div class="menu-btn" onclick="goTo('scan')">
+                    <div class="menu-icon bg-blue-500"><i class="fas fa-camera"></i></div>
+                    <div class="flex-1">
+                        <h3 class="text-sm font-semibold">Scan Waste</h3>
+                        <p class="text-[11px] text-gray-400">Identify items via camera</p>
+                    </div><i class="fas fa-chevron-right text-gray-300 text-xs"></i>
+                </div>
+                <div class="menu-btn" onclick="goTo('categories')">
+                    <div class="menu-icon bg-eco-500"><i class="fas fa-recycle"></i></div>
+                    <div class="flex-1">
+                        <h3 class="text-sm font-semibold">Waste Categories</h3>
+                        <p class="text-[11px] text-gray-400">Wet, Dry & Hazardous</p>
+                    </div><i class="fas fa-chevron-right text-gray-300 text-xs"></i>
+                </div>
+                <div class="menu-btn" onclick="goTo('manage')">
+                    <div class="menu-icon bg-orange-500"><i class="fas fa-clipboard-list"></i></div>
+                    <div class="flex-1">
+                        <h3 class="text-sm font-semibold">How to Manage Waste</h3>
+                        <p class="text-[11px] text-gray-400">Step-by-step guide</p>
+                    </div><i class="fas fa-chevron-right text-gray-300 text-xs"></i>
+                </div>
+                <div class="menu-btn" onclick="goTo('segregation')">
+                    <div class="menu-icon bg-teal-500"><i class="fas fa-arrows-split-up-and-left"></i></div>
+                    <div class="flex-1">
+                        <h3 class="text-sm font-semibold">Segregation Guide</h3>
+                        <p class="text-[11px] text-gray-400">Proper waste separation</p>
+                    </div><i class="fas fa-chevron-right text-gray-300 text-xs"></i>
+                </div>
+                <div class="menu-btn" onclick="goTo('importance')">
+                    <div class="menu-icon bg-rose-500"><i class="fas fa-heart"></i></div>
+                    <div class="flex-1">
+                        <h3 class="text-sm font-semibold">Why Waste Mgmt Matters</h3>
+                        <p class="text-[11px] text-gray-400">Facts & figures</p>
+                    </div><i class="fas fa-chevron-right text-gray-300 text-xs"></i>
+                </div>
+                <div class="menu-btn" onclick="goTo('notifications')">
+                    <div class="menu-icon bg-purple-500"><i class="fas fa-bell"></i></div>
+                    <div class="flex-1">
+                        <h3 class="text-sm font-semibold">Notifications</h3>
+                        <p class="text-[11px] text-gray-400">Live detection alerts</p>
+                    </div><i class="fas fa-chevron-right text-gray-300 text-xs"></i>
+                </div>
+                <div class="menu-btn" onclick="goTo('history')">
+                    <div class="menu-icon bg-indigo-500"><i class="fas fa-history"></i></div>
+                    <div class="flex-1">
+                        <h3 class="text-sm font-semibold">Scan History</h3>
+                        <p class="text-[11px] text-gray-400">View past scans</p>
+                    </div><i class="fas fa-chevron-right text-gray-300 text-xs"></i>
+                </div>
+                <div class="menu-btn" onclick="goTo('profile')">
+                    <div class="menu-icon bg-gray-500"><i class="fas fa-user"></i></div>
+                    <div class="flex-1">
+                        <h3 class="text-sm font-semibold">My Profile</h3>
+                        <p class="text-[11px] text-gray-400">Account & stats</p>
+                    </div><i class="fas fa-chevron-right text-gray-300 text-xs"></i>
+                </div>
+
+                <!-- Daily Tip -->
+                <div class="daily-tip-banner mt-2">
+                    <div
+                        class="w-8 h-8 rounded-lg bg-eco-600 flex items-center justify-center text-white flex-shrink-0">
+                        <i class="fas fa-star text-xs"></i></div>
+                    <div>
+                        <h4 class="text-xs font-bold text-white">Daily Tip</h4>
+                        <p id="daily-tip-text" class="text-[10px] text-white/80">Recycle 1 plastic bottle = Save 100ml
+                            of oil!</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ============ SCAN SCREEN (REAL CAMERA) ============ -->
+        <div id="scan" class="screen">
+            <div class="screen-topbar">
+                <button onclick="goTo('home'); stopCamera()"><i class="fas fa-arrow-left"></i></button>
+                <h3>Scan Waste</h3>
+                <button id="flash-btn" onclick="toggleFlash()"><i class="fas fa-bolt"></i></button>
+            </div>
+            <!-- Camera feed -->
+            <div class="camera-view mx-4 mt-3" id="camera-container">
+                <video id="camera-feed" autoplay playsinline></video>
+                <canvas id="camera-canvas" style="display:none"></canvas>
+                <div class="scan-line-anim"></div>
+                <div id="camera-placeholder" class="scan-frame-box">
+                    <i class="fas fa-camera text-white/40 text-4xl"></i>
+                    <p class="text-white/50 text-xs mt-2">Tap "Start Scan" to begin</p>
+                </div>
+                <!-- Detection overlay -->
+                <div id="detection-overlay" class="detection-overlay hidden">
+                    <div class="detection-box">
+                        <span id="det-label" class="det-label">Detecting...</span>
+                    </div>
+                </div>
+            </div>
+            <!-- Controls -->
+            <div class="flex gap-3 mx-4 mt-3">
+                <button id="scan-start-btn"
+                    class="flex-1 py-3 bg-eco-500 text-white font-semibold rounded-xl text-sm hover:bg-eco-600 transition"
+                    onclick="startScan()"><i class="fas fa-play mr-2"></i>Start Scan</button>
+                <button id="scan-capture-btn"
+                    class="flex-1 py-3 bg-blue-500 text-white font-semibold rounded-xl text-sm hover:bg-blue-600 transition hidden"
+                    onclick="captureAndDetect()"><i class="fas fa-crosshairs mr-2"></i>Detect</button>
+            </div>
+            <!-- Result card (hidden initially) -->
+            <div id="scan-result" class="mx-4 mt-3 bg-white rounded-2xl p-4 shadow-sm border border-gray-100 hidden">
+                <div class="flex justify-between items-center mb-2">
+                    <h2 id="res-name" class="font-bold text-base">--</h2>
+                    <span id="res-badge" class="px-3 py-1 text-[10px] font-bold rounded-full">--</span>
+                </div>
+                <p id="res-confidence" class="text-gray-400 text-xs mb-2"></p>
+                <div class="flex items-center gap-2 mb-3 px-3 py-2 bg-blue-50 rounded-lg">
+                    <i class="fab fa-bluetooth-b text-blue-500"></i>
+                    <span class="text-xs text-blue-700 font-medium">Arduino → Bluetooth → Phone → Classified</span>
+                </div>
+                <button id="res-action-btn" class="w-full py-3 text-white font-semibold rounded-xl text-sm transition">
+                    <i class="fas fa-trash-alt mr-2"></i><span id="res-action-text">Dispose correctly</span>
+                </button>
+            </div>
+            <!-- Scan info -->
+            <div class="mx-4 mt-3 mb-4 bg-eco-50 rounded-xl p-4 border border-eco-100">
+                <h4 class="text-xs font-bold text-eco-700 mb-2"><i class="fas fa-info-circle mr-1"></i>How Scanning
+                    Works</h4>
+                <ol class="text-[11px] text-gray-500 space-y-1 list-decimal list-inside">
+                    <li>Camera captures the waste item image</li>
+                    <li>Arduino sensors detect moisture & material</li>
+                    <li>Data transmitted via Bluetooth to your phone</li>
+                    <li>App classifies and recommends the correct bin</li>
+                </ol>
+            </div>
+        </div>
+
+        <!-- ============ NOTIFICATIONS ============ -->
+        <div id="notifications" class="screen">
+            <div class="screen-topbar">
+                <button onclick="goTo('home')"><i class="fas fa-arrow-left"></i></button>
+                <h3>Notifications</h3>
+                <button onclick="clearNotifs()" class="!text-xs !text-eco-600 !font-semibold">Clear</button>
+            </div>
+            <div class="px-4 pt-2 pb-4 overflow-y-auto flex-1 space-y-2.5" id="notif-list">
+                <div class="text-center py-16 text-gray-300"><i class="fas fa-bell-slash text-3xl mb-2"></i>
+                    <p class="text-xs">Connect Bluetooth to receive alerts</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- ============ CATEGORIES ============ -->
+        <div id="categories" class="screen">
+            <div class="screen-topbar">
+                <button onclick="goTo('home')"><i class="fas fa-arrow-left"></i></button>
+                <h3>Waste Categories</h3>
+                <span></span>
+            </div>
+            <div class="px-4 pt-2 pb-4 overflow-y-auto flex-1 space-y-3">
+                <div class="cat-card bg-gradient-to-r from-green-500 to-green-600" onclick="toggleExpand(this)">
+                    <div class="flex items-center gap-3">
+                        <div
+                            class="w-11 h-11 rounded-xl bg-white/20 flex items-center justify-center text-white text-lg">
+                            <i class="fas fa-apple-alt"></i></div>
+                        <div class="flex-1">
+                            <h3 class="font-bold text-white text-sm">Wet Waste</h3>
+                            <p class="text-white/70 text-[10px]">Biodegradable / organic</p>
+                        </div><i
+                            class="fas fa-chevron-down text-white/50 text-xs expand-arrow transition-transform"></i>
+                    </div>
+                    <div class="cat-expand hidden mt-3 pt-3 border-t border-white/20 text-white/90 text-xs space-y-1">
+                        <p>🍎 Fruit & vegetable peels</p>
+                        <p>🍚 Cooked food & leftovers</p>
+                        <p>☕ Coffee grounds & tea bags</p>
+                        <p>🌿 Garden waste & flowers</p>
+                        <p class="pt-1 text-white/60 text-[10px]"><i class="fas fa-trash mr-1"></i>Dispose in:
+                            <strong>Green Bin</strong></p>
+                    </div>
+                </div>
+                <div class="cat-card bg-gradient-to-r from-blue-500 to-blue-600" onclick="toggleExpand(this)">
+                    <div class="flex items-center gap-3">
+                        <div
+                            class="w-11 h-11 rounded-xl bg-white/20 flex items-center justify-center text-white text-lg">
+                            <i class="fas fa-box-open"></i></div>
+                        <div class="flex-1">
+                            <h3 class="font-bold text-white text-sm">Dry Waste</h3>
+                            <p class="text-white/70 text-[10px]">Non-biodegradable / recyclable</p>
+                        </div><i
+                            class="fas fa-chevron-down text-white/50 text-xs expand-arrow transition-transform"></i>
+                    </div>
+                    <div class="cat-expand hidden mt-3 pt-3 border-t border-white/20 text-white/90 text-xs space-y-1">
+                        <p>🥤 Plastic bottles & containers</p>
+                        <p>📰 Newspapers & cardboard</p>
+                        <p>🥫 Metal cans & foil</p>
+                        <p>🍷 Glass bottles & jars</p>
+                        <p class="pt-1 text-white/60 text-[10px]"><i class="fas fa-trash mr-1"></i>Dispose in:
+                            <strong>Blue Bin</strong></p>
+                    </div>
+                </div>
+                <div class="cat-card bg-gradient-to-r from-red-500 to-red-600" onclick="toggleExpand(this)">
+                    <div class="flex items-center gap-3">
+                        <div
+                            class="w-11 h-11 rounded-xl bg-white/20 flex items-center justify-center text-white text-lg">
+                            <i class="fas fa-radiation"></i></div>
+                        <div class="flex-1">
+                            <h3 class="font-bold text-white text-sm">Hazardous Waste</h3>
+                            <p class="text-white/70 text-[10px]">Toxic / dangerous</p>
+                        </div><i
+                            class="fas fa-chevron-down text-white/50 text-xs expand-arrow transition-transform"></i>
+                    </div>
+                    <div class="cat-expand hidden mt-3 pt-3 border-t border-white/20 text-white/90 text-xs space-y-1">
+                        <p>🔋 Batteries & cells</p>
+                        <p>💡 CFL & fluorescent bulbs</p>
+                        <p>📱 E-waste & circuit boards</p>
+                        <p>🧪 Chemicals & paint</p>
+                        <p class="pt-1 text-white/60 text-[10px]"><i class="fas fa-trash mr-1"></i>Dispose in:
+                            <strong>Red Bin</strong></p>
+                    </div>
+                </div>
+                <div class="cat-card bg-gradient-to-r from-amber-500 to-amber-600" onclick="toggleExpand(this)">
+                    <div class="flex items-center gap-3">
+                        <div
+                            class="w-11 h-11 rounded-xl bg-white/20 flex items-center justify-center text-white text-lg">
+                            <i class="fas fa-microchip"></i></div>
+                        <div class="flex-1">
+                            <h3 class="font-bold text-white text-sm">E-Waste</h3>
+                            <p class="text-white/70 text-[10px]">Electronic waste</p>
+                        </div><i
+                            class="fas fa-chevron-down text-white/50 text-xs expand-arrow transition-transform"></i>
+                    </div>
+                    <div class="cat-expand hidden mt-3 pt-3 border-t border-white/20 text-white/90 text-xs space-y-1">
+                        <p>💻 Old laptops & computers</p>
+                        <p>📱 Broken phones</p>
+                        <p>🖨️ Printers</p>
+                        <p>🔌 Cables & chargers</p>
+                        <p class="pt-1 text-white/60 text-[10px]"><i class="fas fa-building mr-1"></i>Drop at:
+                            <strong>E-Waste Center</strong></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ============ HOW TO MANAGE WASTE ============ -->
+        <div id="manage" class="screen">
+            <div class="screen-topbar"><button onclick="goTo('home')"><i class="fas fa-arrow-left"></i></button>
+                <h3>How to Manage Waste</h3><span></span>
+            </div>
+            <div class="px-4 pt-2 pb-4 overflow-y-auto flex-1 space-y-3">
+                <div class="info-card" onclick="toggleExpand(this)">
+                    <div class="flex items-center gap-3">
+                        <div class="step-num bg-eco-500">1</div>
+                        <div class="flex-1">
+                            <h4 class="font-semibold text-sm">Reduce Waste Generation</h4>
+                            <p class="text-[10px] text-gray-400">Minimize before it starts</p>
+                        </div><i
+                            class="fas fa-chevron-down text-gray-300 text-xs expand-arrow transition-transform"></i>
+                    </div>
+                    <div class="cat-expand hidden mt-3 pt-3 border-t border-gray-100 text-xs text-gray-500 space-y-1.5">
+                        <p>• Avoid single-use plastics — carry reusable bags.</p>
+                        <p>• Buy only what you need to prevent food waste.</p>
+                        <p>• Choose products with recyclable packaging.</p>
+                        <p>• Use digital receipts instead of paper.</p>
+                    </div>
+                </div>
+                <div class="info-card" onclick="toggleExpand(this)">
+                    <div class="flex items-center gap-3">
+                        <div class="step-num bg-blue-500">2</div>
+                        <div class="flex-1">
+                            <h4 class="font-semibold text-sm">Segregate at Source</h4>
+                            <p class="text-[10px] text-gray-400">Separate wet, dry & hazardous</p>
+                        </div><i
+                            class="fas fa-chevron-down text-gray-300 text-xs expand-arrow transition-transform"></i>
+                    </div>
+                    <div class="cat-expand hidden mt-3 pt-3 border-t border-gray-100 text-xs text-gray-500 space-y-1.5">
+                        <p>• Keep separate bins: <strong>Green</strong> (wet), <strong>Blue</strong> (dry),
+                            <strong>Red</strong> (hazardous).</p>
+                        <p>• Rinse containers before dry waste.</p>
+                        <p>• Never mix medical waste with regular waste.</p>
+                        <p>• Use EcoSort's smart detection to verify.</p>
+                    </div>
+                </div>
+                <div class="info-card" onclick="toggleExpand(this)">
+                    <div class="flex items-center gap-3">
+                        <div class="step-num bg-amber-500">3</div>
+                        <div class="flex-1">
+                            <h4 class="font-semibold text-sm">Reuse & Repurpose</h4>
+                            <p class="text-[10px] text-gray-400">Give items a second life</p>
+                        </div><i
+                            class="fas fa-chevron-down text-gray-300 text-xs expand-arrow transition-transform"></i>
+                    </div>
+                    <div class="cat-expand hidden mt-3 pt-3 border-t border-gray-100 text-xs text-gray-500 space-y-1.5">
+                        <p>• Convert jars into storage containers.</p>
+                        <p>• Donate usable clothes, books & electronics.</p>
+                        <p>• Use newspaper for packing.</p>
+                        <p>• Repurpose t-shirts as cleaning rags.</p>
+                    </div>
+                </div>
+                <div class="info-card" onclick="toggleExpand(this)">
+                    <div class="flex items-center gap-3">
+                        <div class="step-num bg-teal-500">4</div>
+                        <div class="flex-1">
+                            <h4 class="font-semibold text-sm">Compost Organic Waste</h4>
+                            <p class="text-[10px] text-gray-400">Turn waste into fertilizer</p>
+                        </div><i
+                            class="fas fa-chevron-down text-gray-300 text-xs expand-arrow transition-transform"></i>
+                    </div>
+                    <div class="cat-expand hidden mt-3 pt-3 border-t border-gray-100 text-xs text-gray-500 space-y-1.5">
+                        <p>• Set up a compost bin in your backyard.</p>
+                        <p>• Add fruit peels, veggie scraps, leaves.</p>
+                        <p>• Avoid composting meat or dairy.</p>
+                        <p>• Use compost as natural fertilizer.</p>
+                    </div>
+                </div>
+                <div class="info-card" onclick="toggleExpand(this)">
+                    <div class="flex items-center gap-3">
+                        <div class="step-num bg-purple-500">5</div>
+                        <div class="flex-1">
+                            <h4 class="font-semibold text-sm">Recycle Properly</h4>
+                            <p class="text-[10px] text-gray-400">Know what's recyclable</p>
+                        </div><i
+                            class="fas fa-chevron-down text-gray-300 text-xs expand-arrow transition-transform"></i>
+                    </div>
+                    <div class="cat-expand hidden mt-3 pt-3 border-t border-gray-100 text-xs text-gray-500 space-y-1.5">
+                        <p>• Check recycling symbols on packaging.</p>
+                        <p>• Flatten cardboard boxes to save space.</p>
+                        <p>• Remove caps from bottles before recycling.</p>
+                        <p>• Sell recyclables to local scrap dealer.</p>
+                    </div>
+                </div>
+                <div class="info-card" onclick="toggleExpand(this)">
+                    <div class="flex items-center gap-3">
+                        <div class="step-num bg-rose-500">6</div>
+                        <div class="flex-1">
+                            <h4 class="font-semibold text-sm">Dispose Responsibly</h4>
+                            <p class="text-[10px] text-gray-400">Final step matters most</p>
+                        </div><i
+                            class="fas fa-chevron-down text-gray-300 text-xs expand-arrow transition-transform"></i>
+                    </div>
+                    <div class="cat-expand hidden mt-3 pt-3 border-t border-gray-100 text-xs text-gray-500 space-y-1.5">
+                        <p>• Hand segregated waste to municipal collectors.</p>
+                        <p>• Drop hazardous waste at collection centers.</p>
+                        <p>• Never burn waste — releases toxic gases.</p>
+                        <p>• Report illegal dumping to authorities.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ============ SEGREGATION GUIDE ============ -->
+        <div id="segregation" class="screen">
+            <div class="screen-topbar"><button onclick="goTo('home')"><i class="fas fa-arrow-left"></i></button>
+                <h3>Segregation Guide</h3><span></span>
+            </div>
+            <div class="px-4 pt-2 pb-4 overflow-y-auto flex-1">
+                <div class="bg-gradient-to-br from-eco-500 to-eco-700 rounded-2xl p-4 text-white mb-4">
+                    <h4 class="font-bold text-sm mb-1">What is Waste Segregation?</h4>
+                    <p class="text-white/80 text-[11px] leading-relaxed">Separating waste into wet, dry, and hazardous
+                        categories at source. Ensures efficient recycling and reduces landfill load.</p>
+                </div>
+                <h4 class="font-bold text-sm text-gray-700 mb-2"><i
+                        class="fas fa-question-circle text-eco-500 mr-1"></i> Why Segregate?</h4>
+                <div class="space-y-2 mb-4">
+                    <div class="seg-point"><i class="fas fa-check-circle text-eco-500"></i><span>Prevents contamination
+                            of recyclables.</span></div>
+                    <div class="seg-point"><i class="fas fa-check-circle text-eco-500"></i><span>Reduces landfill waste
+                            by up to 60%.</span></div>
+                    <div class="seg-point"><i class="fas fa-check-circle text-eco-500"></i><span>Enables proper
+                            hazardous treatment.</span></div>
+                    <div class="seg-point"><i class="fas fa-check-circle text-eco-500"></i><span>Saves energy & natural
+                            resources.</span></div>
+                    <div class="seg-point"><i class="fas fa-check-circle text-eco-500"></i><span>Creates recycling
+                            sector jobs.</span></div>
+                </div>
+                <h4 class="font-bold text-sm text-gray-700 mb-2"><i class="fas fa-microchip text-blue-500 mr-1"></i>
+                    EcoSort Flow</h4>
+                <div class="bg-blue-50 rounded-xl p-3 border border-blue-100 space-y-2 mb-4">
+                    <div class="flex items-start gap-2 text-xs text-gray-600">
+                        <div class="step-num-sm bg-blue-500">1</div><span>Arduino sensors analyze waste.</span>
+                    </div>
+                    <div class="flex items-start gap-2 text-xs text-gray-600">
+                        <div class="step-num-sm bg-blue-500">2</div><span>Data sent via Bluetooth to phone.</span>
+                    </div>
+                    <div class="flex items-start gap-2 text-xs text-gray-600">
+                        <div class="step-num-sm bg-blue-500">3</div><span>App shows type & correct bin.</span>
+                    </div>
+                    <div class="flex items-start gap-2 text-xs text-gray-600">
+                        <div class="step-num-sm bg-blue-500">4</div><span>Motor rotates bin platform.</span>
+                    </div>
+                    <div class="flex items-start gap-2 text-xs text-gray-600">
+                        <div class="step-num-sm bg-blue-500">5</div><span>Notification pushed to phone.</span>
+                    </div>
+                </div>
+                <h4 class="font-bold text-sm text-gray-700 mb-2"><i class="fas fa-trash text-amber-500 mr-1"></i> Bin
+                    Colors</h4>
+                <div class="grid grid-cols-3 gap-2">
+                    <div class="text-center py-3 rounded-xl bg-green-500 text-white"><i
+                            class="fas fa-dumpster text-lg mb-1"></i>
+                        <p class="text-[10px] font-bold">Green</p>
+                        <p class="text-[9px] text-white/70">Wet</p>
+                    </div>
+                    <div class="text-center py-3 rounded-xl bg-blue-500 text-white"><i
+                            class="fas fa-dumpster text-lg mb-1"></i>
+                        <p class="text-[10px] font-bold">Blue</p>
+                        <p class="text-[9px] text-white/70">Dry</p>
+                    </div>
+                    <div class="text-center py-3 rounded-xl bg-red-500 text-white"><i
+                            class="fas fa-dumpster text-lg mb-1"></i>
+                        <p class="text-[10px] font-bold">Red</p>
+                        <p class="text-[9px] text-white/70">Hazardous</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ============ IMPORTANCE ============ -->
+        <div id="importance" class="screen">
+            <div class="screen-topbar"><button onclick="goTo('home')"><i class="fas fa-arrow-left"></i></button>
+                <h3>Why Waste Mgmt Matters</h3><span></span>
+            </div>
+            <div class="px-4 pt-2 pb-4 overflow-y-auto flex-1">
+                <div class="bg-gradient-to-br from-rose-500 to-pink-600 rounded-2xl p-4 text-white text-center mb-4">
+                    <p class="text-3xl font-black">2 Billion</p>
+                    <p class="text-white/80 text-xs mt-1">Tons of waste generated globally per year</p>
+                </div>
+                <div class="space-y-3">
+                    <div class="imp-card">
+                        <div class="imp-icon bg-eco-100 text-eco-600"><i class="fas fa-tree"></i></div>
+                        <div>
+                            <h4 class="font-semibold text-sm">Environmental Protection</h4>
+                            <p class="text-[11px] text-gray-400 mt-0.5">Prevents soil, water & air pollution. Stops
+                                chemicals from leaching into groundwater.</p>
+                        </div>
+                    </div>
+                    <div class="imp-card">
+                        <div class="imp-icon bg-blue-100 text-blue-600"><i class="fas fa-heartbeat"></i></div>
+                        <div>
+                            <h4 class="font-semibold text-sm">Public Health</h4>
+                            <p class="text-[11px] text-gray-400 mt-0.5">Reduces disease spread. Minimizes breeding
+                                grounds for mosquitoes & rodents.</p>
+                        </div>
+                    </div>
+                    <div class="imp-card">
+                        <div class="imp-icon bg-amber-100 text-amber-600"><i class="fas fa-coins"></i></div>
+                        <div>
+                            <h4 class="font-semibold text-sm">Economic Benefits</h4>
+                            <p class="text-[11px] text-gray-400 mt-0.5">India's waste industry is worth ₹14,000 crore.
+                                Recycling creates jobs & revenue.</p>
+                        </div>
+                    </div>
+                    <div class="imp-card">
+                        <div class="imp-icon bg-teal-100 text-teal-600"><i class="fas fa-globe-asia"></i></div>
+                        <div>
+                            <h4 class="font-semibold text-sm">Resource Conservation</h4>
+                            <p class="text-[11px] text-gray-400 mt-0.5">Recycling 1 ton of paper saves 17 trees. Reduces
+                                mining & deforestation.</p>
+                        </div>
+                    </div>
+                    <div class="imp-card">
+                        <div class="imp-icon bg-purple-100 text-purple-600"><i class="fas fa-city"></i></div>
+                        <div>
+                            <h4 class="font-semibold text-sm">Cleaner Cities</h4>
+                            <p class="text-[11px] text-gray-400 mt-0.5">Reduces overflowing bins, clogged drains, urban
+                                flooding, and improves quality of life.</p>
+                        </div>
+                    </div>
+                    <div class="imp-card">
+                        <div class="imp-icon bg-rose-100 text-rose-600"><i class="fas fa-temperature-high"></i></div>
+                        <div>
+                            <h4 class="font-semibold text-sm">Climate Change</h4>
+                            <p class="text-[11px] text-gray-400 mt-0.5">Landfills produce methane — 80x worse than CO₂.
+                                Composting cuts emissions.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ============ TIPS ============ -->
+        <div id="tips" class="screen">
+            <div class="screen-topbar"><button onclick="goTo('home')"><i class="fas fa-arrow-left"></i></button>
+                <h3>Segregation Tips</h3><span></span>
+            </div>
+            <div class="px-4 pt-2 pb-4 overflow-y-auto flex-1 space-y-2.5">
+                <div class="tip-card">
+                    <div class="tip-num">1</div>
+                    <div>
+                        <h4 class="font-semibold text-xs">Rinse Containers</h4>
+                        <p class="text-[10px] text-gray-400 mt-0.5">Always rinse before recycling.</p>
+                    </div>
+                </div>
+                <div class="tip-card">
+                    <div class="tip-num">2</div>
+                    <div>
+                        <h4 class="font-semibold text-xs">Flatten Cardboard</h4>
+                        <p class="text-[10px] text-gray-400 mt-0.5">Saves space in recycling bins.</p>
+                    </div>
+                </div>
+                <div class="tip-card">
+                    <div class="tip-num">3</div>
+                    <div>
+                        <h4 class="font-semibold text-xs">No Plastic Bags</h4>
+                        <p class="text-[10px] text-gray-400 mt-0.5">Return to store drop-offs.</p>
+                    </div>
+                </div>
+                <div class="tip-card">
+                    <div class="tip-num">4</div>
+                    <div>
+                        <h4 class="font-semibold text-xs">Separate Glass</h4>
+                        <p class="text-[10px] text-gray-400 mt-0.5">Prevent breakage & contamination.</p>
+                    </div>
+                </div>
+                <div class="tip-card">
+                    <div class="tip-num">5</div>
+                    <div>
+                        <h4 class="font-semibold text-xs">Check ♻️ Symbols</h4>
+                        <p class="text-[10px] text-gray-400 mt-0.5">Know if items are recyclable.</p>
+                    </div>
+                </div>
+                <div class="tip-card">
+                    <div class="tip-num">6</div>
+                    <div>
+                        <h4 class="font-semibold text-xs">Compost at Home</h4>
+                        <p class="text-[10px] text-gray-400 mt-0.5">Reduces landfill by 30%.</p>
+                    </div>
+                </div>
+                <div class="tip-card">
+                    <div class="tip-num">7</div>
+                    <div>
+                        <h4 class="font-semibold text-xs">Use Reusable Bags</h4>
+                        <p class="text-[10px] text-gray-400 mt-0.5">Carry cloth bags for shopping.</p>
+                    </div>
+                </div>
+                <div class="tip-card">
+                    <div class="tip-num">8</div>
+                    <div>
+                        <h4 class="font-semibold text-xs">Buy in Bulk</h4>
+                        <p class="text-[10px] text-gray-400 mt-0.5">Less packaging waste overall.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ============ HISTORY ============ -->
+        <div id="history" class="screen">
+            <div class="screen-topbar"><button onclick="goTo('home')"><i class="fas fa-arrow-left"></i></button>
+                <h3>Scan History</h3><button onclick="clearHistory()"
+                    class="!text-xs !text-red-500 !font-semibold">Clear</button>
+            </div>
+            <div class="px-4 pt-2 pb-4 overflow-y-auto flex-1 space-y-2" id="history-list"></div>
+        </div>
+
+        <!-- ============ PROFILE ============ -->
+        <div id="profile" class="screen">
+            <div class="screen-topbar"><button onclick="goTo('home')"><i class="fas fa-arrow-left"></i></button>
+                <h3>My Profile</h3><span></span>
+            </div>
+            <div class="px-4 pt-4 pb-4 overflow-y-auto flex-1">
+                <div class="text-center mb-6">
+                    <div
+                        class="w-20 h-20 rounded-full bg-gradient-to-br from-eco-400 to-eco-600 mx-auto flex items-center justify-center text-white text-3xl">
+                        <i class="fas fa-user"></i></div>
+                    <h3 class="font-bold text-lg mt-3">EcoSort User</h3>
+                    <p class="text-xs text-gray-400">K.R. Mangalam University</p>
+                </div>
+                <!-- Stats -->
+                <div class="grid grid-cols-3 gap-3 mb-5">
+                    <div class="text-center py-3 bg-eco-50 rounded-xl border border-eco-100">
+                        <p id="stat-scans" class="text-xl font-black text-eco-600">0</p>
+                        <p class="text-[10px] text-gray-400 mt-1">Total Scans</p>
+                    </div>
+                    <div class="text-center py-3 bg-blue-50 rounded-xl border border-blue-100">
+                        <p id="stat-dry" class="text-xl font-black text-blue-600">0</p>
+                        <p class="text-[10px] text-gray-400 mt-1">Dry Waste</p>
+                    </div>
+                    <div class="text-center py-3 bg-green-50 rounded-xl border border-green-100">
+                        <p id="stat-wet" class="text-xl font-black text-green-600">0</p>
+                        <p class="text-[10px] text-gray-400 mt-1">Wet Waste</p>
+                    </div>
+                </div>
+                <!-- Settings -->
+                <div class="space-y-2">
+                    <div class="flex items-center justify-between p-3 bg-white rounded-xl border border-gray-100">
+                        <span class="text-sm font-medium"><i
+                                class="fab fa-bluetooth-b text-blue-500 mr-2"></i>Bluetooth</span>
+                        <label class="toggle-switch"><input type="checkbox" id="bt-toggle"
+                                onchange="toggleBtSetting(this)"><span class="toggle-slider"></span></label>
+                    </div>
+                    <div class="flex items-center justify-between p-3 bg-white rounded-xl border border-gray-100">
+                        <span class="text-sm font-medium"><i
+                                class="fas fa-bell text-purple-500 mr-2"></i>Notifications</span>
+                        <label class="toggle-switch"><input type="checkbox" checked><span
+                                class="toggle-slider"></span></label>
+                    </div>
+                    <div class="flex items-center justify-between p-3 bg-white rounded-xl border border-gray-100">
+                        <span class="text-sm font-medium"><i class="fas fa-moon text-indigo-500 mr-2"></i>Dark
+                            Mode</span>
+                        <label class="toggle-switch"><input type="checkbox" onchange="toggleDarkMode(this)"><span
+                                class="toggle-slider"></span></label>
+                    </div>
+                    <div class="flex items-center justify-between p-3 bg-white rounded-xl border border-gray-100">
+                        <span class="text-sm font-medium"><i
+                                class="fas fa-language text-amber-500 mr-2"></i>Language</span>
+                        <span class="text-xs text-gray-400">English</span>
+                    </div>
+                    <div class="p-3 bg-white rounded-xl border border-gray-100 text-center">
+                        <p class="text-[10px] text-gray-400">EcoSort v1.0 — K.R. Mangalam University</p>
+                        <p class="text-[9px] text-gray-300 mt-1">Smart Waste Segregation System • 2026</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div><!-- end phone-frame -->
+
+    <!-- ============ JAVASCRIPT ============ -->
+    <script src="app.js"></script>
+</body>
+
+</html>
