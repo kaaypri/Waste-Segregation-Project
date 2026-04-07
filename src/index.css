@@ -1,0 +1,15 @@
+@import "tailwindcss";
+
+@theme {
+  --color-primary: var(--color-emerald-700);
+  --color-secondary: var(--color-slate-900);
+  --color-accent: var(--color-amber-500);
+
+  --font-sans: 'Inter', 'Geist', sans-serif;
+}
+
+@layer base {
+  :root {
+    background-color: var(--color-gray-50);
+  }
+}
